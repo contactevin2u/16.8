@@ -10,8 +10,10 @@ import csv
 from datetime import datetime, date
 from .storage import SessionLocal, init_db, Order, Payment, Event
 
-app = FastAPI(title="Order Intake Cloud API")
 
+from openai import OpenAI
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 FRONTEND_ORIGINS = os.getenv("FRONTEND_ORIGINS", "http://localhost:3000").split(",")
 FRONTEND_ORIGIN_REGEX = os.getenv("FRONTEND_ORIGIN_REGEX", "").strip()  # e.g., ^https://16-8front(-git-.*)?\.vercel\.app$
 
@@ -42,6 +44,28 @@ def health(): return {"ok": True}
 @app.post("/parse")
 def parse(body: ParseIn):
     import re
+    if body.matcher == "ai" and client is not None:
+        prompt = f"""Extract an order summary as JSON with keys:
+- order_code (string or null)
+- customer_name (string or null)
+- phone (string or null)
+
+Text:
+{body.text}
+"""
+        try:
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role":"system","content":"You extract structured order data as JSON."},{"role":"user","content":prompt}],
+                response_format={"type":"json_object"}
+            )
+            data = json.loads(resp.choices[0].message.content)
+            code = data.get("order_code") or None
+            parsed = {"ai": data, "matcher": body.matcher, "lang": body.lang}
+            match = {"order_code": code, "reason": "ai-extract"} if code else None
+            return {"parsed": parsed, "match": match}
+        except Exception:
+            pass
     m = re.search(r'\b([A-Z]{2,5}-\d{3,6})\b', body.text.upper())
     code = m.group(1) if m else None
     parsed = {"raw_preview": body.text[:160], "matcher": body.matcher, "lang": body.lang}
@@ -86,5 +110,6 @@ def export_csv(start: Optional[date] = None, end: Optional[date] = None, childre
         if end and d > end.isoformat(): pass
         w.writerow(["event", e.order_code, d, e.kind, "false"])
     return Response(content=buf.getvalue(), media_type="text/csv", headers={"Content-Disposition": 'attachment; filename="export.csv"'})
+
 
 
