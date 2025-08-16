@@ -67,16 +67,16 @@ def create_order(body: OrderCreate):
 
 @app.post("/parse")
 def parse(body: ParseIn):
-    # If matcher = "ai" and key exists -> use OpenAI (gpt-4o-mini)
+    # If matcher="ai" and key exists -> use OpenAI (gpt-4o-mini)
     if body.matcher == "ai" and openai_client is not None:
-        prompt = f\"\"\"Extract an order summary as JSON with keys:
+        prompt = f"""Extract an order summary as JSON with keys:
 - order_code (string or null)
 - customer_name (string or null)
 - phone (string or null)
 
 Text:
 {body.text}
-\"\"\"
+"""
         try:
             resp = openai_client.chat.completions.create(
                 model="gpt-4o-mini",
@@ -92,7 +92,7 @@ Text:
             match = {"order_code": code, "reason": "ai-extract"} if code else None
             return {"parsed": parsed, "match": match}
         except Exception:
-            # fallback to regex below
+            # fallback to regex below on any OpenAI error
             pass
 
     # Else -> regex fallback for codes like OS-1234
