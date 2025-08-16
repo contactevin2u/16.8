@@ -1,6 +1,8 @@
-
+﻿
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
+
+import os
 from pydantic import BaseModel, Field
 from typing import Literal, Optional, List
 from io import StringIO
@@ -10,7 +12,8 @@ from .storage import SessionLocal, init_db, Order, Payment, Event
 
 app = FastAPI(title="Order Intake Cloud API")
 
-origins = ["http://localhost:3000", "https://YOUR-VERCEL-PROJECT.vercel.app"]
+FRONTEND_ORIGINS = os.getenv('FRONTEND_ORIGINS', 'http://localhost:3000').split(',')
+origins = [o.strip() for o in FRONTEND_ORIGINS]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 class ParseIn(BaseModel):
@@ -77,3 +80,4 @@ def export_csv(start: Optional[date] = None, end: Optional[date] = None, childre
         if end and d > end.isoformat(): pass
         w.writerow(["event", e.order_code, d, e.kind, "false"])
     return Response(content=buf.getvalue(), media_type="text/csv", headers={"Content-Disposition": 'attachment; filename="export.csv"'})
+
