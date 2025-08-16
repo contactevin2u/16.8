@@ -12,11 +12,17 @@ from .storage import SessionLocal, init_db, Order, Payment, Event
 
 app = FastAPI(title="Order Intake Cloud API")
 
-FRONTEND_ORIGINS = os.getenv('FRONTEND_ORIGINS', 'http://localhost:3000').split(',')
-origins = [o.strip() for o in FRONTEND_ORIGINS]
-app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+FRONTEND_ORIGINS = os.getenv("FRONTEND_ORIGINS", "http://localhost:3000").split(",")
+FRONTEND_ORIGIN_REGEX = os.getenv("FRONTEND_ORIGIN_REGEX", "").strip()  # e.g., ^https://16-8front(-git-.*)?\.vercel\.app$
 
-class ParseIn(BaseModel):
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in FRONTEND_ORIGINS if o.strip()],
+    allow_origin_regex=FRONTEND_ORIGIN_REGEX if FRONTEND_ORIGIN_REGEX else None,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)class ParseIn(BaseModel):
     text: str
     matcher: str = "hybrid"
     lang: Literal["en","ms"] = "en"
@@ -80,4 +86,5 @@ def export_csv(start: Optional[date] = None, end: Optional[date] = None, childre
         if end and d > end.isoformat(): pass
         w.writerow(["event", e.order_code, d, e.kind, "false"])
     return Response(content=buf.getvalue(), media_type="text/csv", headers={"Content-Disposition": 'attachment; filename="export.csv"'})
+
 
